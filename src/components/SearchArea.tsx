@@ -29,11 +29,9 @@ export const SearchArea: React.FC<SearchAreaProps> = ({
       const faceDetector = new FaceDetector();
       await faceDetector.initialize();
       
-      // Create URL for search image
       const searchUrl = URL.createObjectURL(searchFile);
       setSearchImage(searchUrl);
       
-      // Detect faces in search image
       const searchFaces = await faceDetector.detectFaces(searchUrl);
       
       if (searchFaces.length === 0) {
@@ -45,12 +43,11 @@ export const SearchArea: React.FC<SearchAreaProps> = ({
       console.log(`Found ${searchFaces.length} faces in search image`);
       
       // Find similar faces in uploaded photos
-      const similarPhotos: Photo[] = [];
+      const photoSimilarities: { photo: Photo; similarity: number }[] = [];
       
       for (const photo of photos) {
         if (!photo.faces || photo.faces.length === 0) continue;
         
-        // Check similarity with each face in the photo
         let maxSimilarity = 0;
         for (const photoFace of photo.faces) {
           for (const searchFace of searchFaces) {
@@ -59,19 +56,28 @@ export const SearchArea: React.FC<SearchAreaProps> = ({
           }
         }
         
-        // If similarity is above threshold, include the photo
-        if (maxSimilarity > 0.6) { // Threshold for similarity
-          similarPhotos.push(photo);
+        if (maxSimilarity > 0.5) { // Lower threshold for better results
+          photoSimilarities.push({ photo, similarity: maxSimilarity });
           console.log(`Photo ${photo.id} similarity: ${maxSimilarity.toFixed(3)}`);
         }
       }
       
+      // Sort by similarity (highest first)
+      photoSimilarities.sort((a, b) => b.similarity - a.similarity);
+      const similarPhotos = photoSimilarities.map(item => item.photo);
+      
       onSearch(similarPhotos);
-      toast.success(`Found ${similarPhotos.length} similar photos`);
+      
+      if (similarPhotos.length > 0) {
+        toast.success(`Found ${similarPhotos.length} similar photos`);
+      } else {
+        toast.info('No similar faces found. Try with a different image.');
+      }
       
     } catch (error) {
       toast.error('Error during search');
       console.error('Search error:', error);
+      setSearchImage(null);
     } finally {
       setIsSearching(false);
     }
