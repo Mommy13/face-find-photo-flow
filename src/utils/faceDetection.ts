@@ -7,8 +7,6 @@ export class FaceDetector {
     if (this.isInitialized) return;
     
     try {
-      // For now, we'll simulate face detection
-      // In a production app, you would use @huggingface/transformers or similar
       console.log('Face detector initialized (simulated)');
       this.isInitialized = true;
     } catch (error) {
@@ -23,38 +21,113 @@ export class FaceDetector {
     }
 
     try {
-      // Simulate face detection with random results
-      // In a real implementation, this would use actual AI models
-      const numFaces = Math.floor(Math.random() * 3) + 1; // 1-3 faces
-      const faces = [];
+      // Create a canvas to analyze the image
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
       
-      for (let i = 0; i < numFaces; i++) {
-        faces.push({
-          id: Math.random().toString(36).substr(2, 9),
-          bbox: {
-            x: Math.random() * 100,
-            y: Math.random() * 100,
-            width: Math.random() * 50 + 50,
-            height: Math.random() * 50 + 50,
-          },
-          confidence: Math.random() * 0.3 + 0.7, // 0.7-1.0
-          embedding: Array.from({ length: 128 }, () => Math.random() * 2 - 1), // Simulated face embedding
-        });
-      }
-      
-      return faces;
+      return new Promise((resolve) => {
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx?.drawImage(img, 0, 0);
+          
+          // Simulate face detection based on image characteristics
+          const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData?.data;
+          
+          if (!data) {
+            resolve([]);
+            return;
+          }
+          
+          // Simple face detection simulation based on image complexity
+          let complexity = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const brightness = (r + g + b) / 3;
+            if (brightness > 100 && brightness < 200) {
+              complexity++;
+            }
+          }
+          
+          // Determine number of faces based on image complexity
+          const faceCount = Math.min(Math.floor(complexity / 10000) + 1, 3);
+          const faces = [];
+          
+          for (let i = 0; i < faceCount; i++) {
+            // Generate consistent embeddings based on image data
+            const embedding = this.generateEmbeddingFromImage(data, i);
+            
+            faces.push({
+              id: `face_${i}_${imageUrl.substring(imageUrl.length - 10)}`,
+              bbox: {
+                x: (i * 30) % (canvas.width - 100),
+                y: (i * 40) % (canvas.height - 100),
+                width: 80 + (i * 20),
+                height: 80 + (i * 20),
+              },
+              confidence: 0.8 + (i * 0.05),
+              embedding: embedding,
+            });
+          }
+          
+          console.log(`Detected ${faces.length} faces in image`);
+          resolve(faces);
+        };
+        
+        img.onerror = () => {
+          console.error('Failed to load image for face detection');
+          resolve([]);
+        };
+        
+        img.src = imageUrl;
+      });
     } catch (error) {
       console.error('Error detecting faces:', error);
       return [];
     }
   }
 
+  private generateEmbeddingFromImage(imageData: Uint8ClampedArray, faceIndex: number): number[] {
+    const embedding = new Array(128);
+    
+    // Generate consistent embeddings based on image data
+    for (let i = 0; i < 128; i++) {
+      const dataIndex = (faceIndex * 1000 + i * 100) % imageData.length;
+      const r = imageData[dataIndex] || 0;
+      const g = imageData[dataIndex + 1] || 0;
+      const b = imageData[dataIndex + 2] || 0;
+      
+      // Normalize to [-1, 1] range
+      embedding[i] = ((r + g + b) / 3 - 127.5) / 127.5;
+    }
+    
+    return embedding;
+  }
+
   calculateSimilarity(face1: any, face2: any): number {
     if (!face1.embedding || !face2.embedding) return 0;
     
-    // Simulate cosine similarity calculation
-    // In a real implementation, this would calculate actual similarity between embeddings
-    const similarity = Math.random() * 0.4 + 0.6; // Random similarity between 0.6-1.0
-    return similarity;
+    // Calculate actual cosine similarity
+    const embedding1 = face1.embedding;
+    const embedding2 = face2.embedding;
+    
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
+    
+    for (let i = 0; i < embedding1.length; i++) {
+      dotProduct += embedding1[i] * embedding2[i];
+      norm1 += embedding1[i] * embedding1[i];
+      norm2 += embedding2[i] * embedding2[i];
+    }
+    
+    const similarity = dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+    return Math.max(0, similarity); // Ensure non-negative
   }
 }

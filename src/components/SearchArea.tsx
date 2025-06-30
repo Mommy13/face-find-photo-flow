@@ -42,21 +42,27 @@ export const SearchArea: React.FC<SearchAreaProps> = ({
         return;
       }
       
+      console.log(`Found ${searchFaces.length} faces in search image`);
+      
       // Find similar faces in uploaded photos
       const similarPhotos: Photo[] = [];
       
       for (const photo of photos) {
-        try {
-          const photoFaces = await faceDetector.detectFaces(photo.url);
-          if (photoFaces.length > 0) {
-            // Simple similarity check - in a real app, you'd use more sophisticated matching
-            const similarity = faceDetector.calculateSimilarity(searchFaces[0], photoFaces[0]);
-            if (similarity > 0.7) { // Threshold for similarity
-              similarPhotos.push(photo);
-            }
+        if (!photo.faces || photo.faces.length === 0) continue;
+        
+        // Check similarity with each face in the photo
+        let maxSimilarity = 0;
+        for (const photoFace of photo.faces) {
+          for (const searchFace of searchFaces) {
+            const similarity = faceDetector.calculateSimilarity(searchFace, photoFace);
+            maxSimilarity = Math.max(maxSimilarity, similarity);
           }
-        } catch (error) {
-          console.error('Error processing photo:', error);
+        }
+        
+        // If similarity is above threshold, include the photo
+        if (maxSimilarity > 0.6) { // Threshold for similarity
+          similarPhotos.push(photo);
+          console.log(`Photo ${photo.id} similarity: ${maxSimilarity.toFixed(3)}`);
         }
       }
       

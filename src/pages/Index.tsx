@@ -5,6 +5,7 @@ import { UploadArea } from '@/components/UploadArea';
 import { SearchArea } from '@/components/SearchArea';
 import { Header } from '@/components/Header';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { FaceDetector } from '@/utils/faceDetection';
 import { toast } from 'sonner';
 
 export interface Photo {
@@ -28,10 +29,30 @@ const Index = () => {
   const handlePhotosUploaded = async (newPhotos: Photo[]) => {
     setIsProcessing(true);
     try {
-      // Process photos for face detection
-      const updatedPhotos = [...photos, ...newPhotos];
+      const faceDetector = new FaceDetector();
+      await faceDetector.initialize();
+      
+      // Process each photo for face detection
+      const processedPhotos = await Promise.all(
+        newPhotos.map(async (photo) => {
+          try {
+            const faces = await faceDetector.detectFaces(photo.url);
+            return {
+              ...photo,
+              faces: faces,
+            };
+          } catch (error) {
+            console.error('Error processing photo:', error);
+            return photo;
+          }
+        })
+      );
+      
+      const updatedPhotos = [...photos, ...processedPhotos];
       setPhotos(updatedPhotos);
-      toast.success(`${newPhotos.length} photos uploaded successfully!`);
+      
+      const totalFaces = processedPhotos.reduce((sum, photo) => sum + (photo.faces?.length || 0), 0);
+      toast.success(`${newPhotos.length} photos uploaded and ${totalFaces} faces detected!`);
     } catch (error) {
       toast.error('Error processing photos');
       console.error('Error processing photos:', error);
