@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Search, X, Upload, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,9 +22,17 @@ export const SearchArea: React.FC<SearchAreaProps> = ({
 }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchImage, setSearchImage] = useState<string | null>(null);
+  const searchInProgress = useRef(false);
 
   const performSearch = async (searchFile: File) => {
+    if (searchInProgress.current || isSearching) {
+      console.log('Search already in progress, skipping...');
+      return;
+    }
+    
+    searchInProgress.current = true;
     setIsSearching(true);
+    
     try {
       const faceDetector = new FaceDetector();
       await faceDetector.initialize();
@@ -56,15 +64,24 @@ export const SearchArea: React.FC<SearchAreaProps> = ({
           }
         }
         
-        if (maxSimilarity > 0.5) { // Lower threshold for better results
+        // Higher threshold for more accurate results
+        if (maxSimilarity > 0.65) {
           photoSimilarities.push({ photo, similarity: maxSimilarity });
           console.log(`Photo ${photo.id} similarity: ${maxSimilarity.toFixed(3)}`);
         }
       }
       
-      // Sort by similarity (highest first)
-      photoSimilarities.sort((a, b) => b.similarity - a.similarity);
-      const similarPhotos = photoSimilarities.map(item => item.photo);
+      // Sort by similarity (highest first) and remove duplicates
+      const uniquePhotos = new Map();
+      photoSimilarities
+        .sort((a, b) => b.similarity - a.similarity)
+        .forEach(item => {
+          if (!uniquePhotos.has(item.photo.id)) {
+            uniquePhotos.set(item.photo.id, item.photo);
+          }
+        });
+      
+      const similarPhotos = Array.from(uniquePhotos.values());
       
       onSearch(similarPhotos);
       
@@ -80,11 +97,12 @@ export const SearchArea: React.FC<SearchAreaProps> = ({
       setSearchImage(null);
     } finally {
       setIsSearching(false);
+      searchInProgress.current = false;
     }
   };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) {
+    if (acceptedFiles.length > 0 && !searchInProgress.current) {
       await performSearch(acceptedFiles[0]);
     }
   }, [photos]);
@@ -100,6 +118,7 @@ export const SearchArea: React.FC<SearchAreaProps> = ({
   const handleClearSearch = () => {
     onClearSearch();
     setSearchImage(null);
+    searchInProgress.current = false;
   };
 
   return (
